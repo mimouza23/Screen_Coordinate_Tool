@@ -9,6 +9,7 @@ from typing import List, Optional, Union, Tuple, Dict
 os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "0"
 os.environ["QT_SCALE_FACTOR"] = "1"
 
+# Later: only use the used ones and discard the older ones.
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTreeWidget, QTreeWidgetItem, QHeaderView,
@@ -22,11 +23,16 @@ from PyQt5.QtGui import (
 
 
 
+
+
+# 
 class CoordinateItem:
     def __init__(self, x: int, y: int, name: str = "", timestamp: Optional[str] = None):
         self.x = x
         self.y = y
+        # add name so that users can keep track of which points are which without needing to look at coordinates.
         self.name = name or f"Point ({x}, {y})"
+        # Timestamp to view them by time stamp and later to implement control z and control y controls
         self.timestamp = timestamp or datetime.now().isoformat()
 
     def to_dict(self):
@@ -36,8 +42,10 @@ class MeasurementItem:
     def __init__(self, x1, y1, x2, y2, distance, name="", timestamp=None, auto_aligned=False):
         self.x1, self.y1 = x1, y1
         self.x2, self.y2 = x2, y2
-        self.distance = distance
+        self.distance = distance # useful for applications like moviepy or similar.
+        # name to make it easier to organize.
         self.name = name or f"Measurement {int(distance)}px"
+        # later to add ability to undo/redo.
         self.timestamp = timestamp or datetime.now().isoformat()
         self.auto_aligned = auto_aligned
 
@@ -62,8 +70,9 @@ class FolderItem:
 
 
 
-
+# for storing all data  
 class DataStore:
+    # not sure if this is necessary anymore.
     DATA_FILE = os.path.expanduser("~/.screen_coordinate_tool_qt.json")
 
     def __init__(self):
@@ -130,6 +139,7 @@ class DataStore:
         return items
 
 
+# --- UI Components ---
 
 class SmartRenameDelegate(QStyledItemDelegate):
     def createEditor(self, parent, option, index):
@@ -163,7 +173,6 @@ class SmartRenameDelegate(QStyledItemDelegate):
             final_text = new_text
             
         model.setData(index, final_text, Qt.EditRole)
-
 
 
 class HistoryTreeWidget(QTreeWidget):
@@ -208,8 +217,6 @@ class HistoryTreeWidget(QTreeWidget):
             
             if isinstance(data, FolderItem):
                 self._check_node(child)
-
-
 
 
 class OverlayWindow(QWidget):
@@ -300,19 +307,6 @@ class OverlayWindow(QWidget):
                 
                 # Smart Positioning
                 text_width = fm.width(label_text) + 15
-                if item.x + point_radius + text_width > screen_w:
-                    # Place on Left
-                    label_pos = QPoint(item.x - point_radius - 10, item.y)
-                else:
-                    # Place on Right
-                    label_pos = QPoint(item.x + point_radius + 10, item.y)
-                
-                # If text is on left, we need to shift the draw coordinate because draw_text_with_bg centers on X
-                # But my helper centers it? Let's check helper: drawRect(x - w/2)
-                # Helper centers text around X.
-                
-                # Let's adjust logic for the helper
-                offset_x = 0
                 if item.x + point_radius + text_width > screen_w:
                     offset_x = - (text_width / 2) - point_radius
                 else:
@@ -519,6 +513,21 @@ class OverlayWindow(QWidget):
     def add_notification(self, text):
         self.notifications.append((text, datetime.now().timestamp() + 2))
 
+    def prompt_for_name(self, default_text=""):
+        """Pauses normal overlay interaction to ask for a name."""
+        # Ensure we release keyboard/mouse grab if active so the dialog can receive input
+        self.releaseKeyboard()
+        self.releaseMouse()
+        
+        name, ok = QInputDialog.getText(
+            self, "Name Item", "Enter name:", text=default_text,
+            flags=Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.Tool
+        )
+        
+        # We don't necessarily need to re-grab, but if we want to ensure hotkeys work:
+        self.setFocus()
+        return name, ok
+
     # --- Input Handling ---
 
     def mouseMoveEvent(self, event):
@@ -532,9 +541,21 @@ class OverlayWindow(QWidget):
 
         if event.button() == Qt.LeftButton:
             if self.capture_mode == "normal":
-                item = self.main_window.add_coordinate(self.cursor_pos.x(), self.cursor_pos.y())
+                # Generate default name based on existing count
+                default_name = self.main_window.get_next_sequence_name("point")
+                # Ask user
+                user_name, ok = self.prompt_for_name(default_name)
+                if not ok:
+                    return
+
+                final_name = user_name if user_name else default_name
+                
+                item = self.main_window.add_coordinate(
+                    self.cursor_pos.x(), self.cursor_pos.y(), name=final_name
+                )
                 self.session_items.append((item, None)) # Store for edit mode
-                self.add_notification(f"Captured: {self.cursor_pos.x()}, {self.cursor_pos.y()}")
+                self.add_notification(f"Captured: {final_name}")
+                
             elif self.capture_mode == "ruler":
                 self.finish_ruler(event.pos())
 
@@ -558,10 +579,25 @@ class OverlayWindow(QWidget):
             elif dy > dx * 10: end = QPoint(start.x(), end.y())
 
         dist = math.sqrt((end.x() - start.x())**2 + (end.y() - start.y())**2)
-        item = self.main_window.add_measurement(start.x(), start.y(), end.x(), end.y(), dist, (end != end_pos))
+        
+        # Generate default name based on existing count
+        default_name = self.main_window.get_next_sequence_name("measurement")
+        # Ask user
+        user_name, ok = self.prompt_for_name(default_name)
+        if not ok:
+            self.capture_mode = "normal"
+            self.ruler_start = None
+            return
+
+        final_name = user_name if user_name else default_name
+
+        item = self.main_window.add_measurement(
+            start.x(), start.y(), end.x(), end.y(), dist, 
+            (end != end_pos), name=final_name
+        )
         self.session_items.append((item, None))
         
-        self.add_notification(f"Measurement: {int(dist)}px")
+        self.add_notification(f"Measurement: {final_name}")
         self.capture_mode = "normal"
         self.ruler_start = None
 
@@ -648,9 +684,7 @@ class OverlayWindow(QWidget):
 
     def rename_current_selection(self):
         item, _ = self.session_items[self.selected_item_index]
-        self.releaseKeyboard() # InputDialog needs keyboard
-        text, ok = QInputDialog.getText(self, "Rename", "New Name:", text=item.name)
-        self.grabKeyboard()
+        text, ok = self.prompt_for_name(item.name)
         
         if ok and text:
             # We must update the MainWindow tree which updates the model
@@ -798,14 +832,34 @@ class MainWindow(QMainWindow):
         self.overlay = OverlayWindow(self)
         self.overlay.show()
 
-    def add_coordinate(self, x, y):
-        item = CoordinateItem(x, y)
+    def get_next_sequence_name(self, item_type: str) -> str:
+        """Counts existing items in the tree to generate sequential names."""
+        count = 0
+        iterator = QTreeWidgetItemIterator(self.tree)
+        while iterator.value():
+            item = iterator.value()
+            data = item.data(0, Qt.UserRole)
+            
+            if item_type == "point" and isinstance(data, CoordinateItem):
+                count += 1
+            elif item_type == "measurement" and isinstance(data, MeasurementItem):
+                count += 1
+            iterator += 1
+            
+        if item_type == "point":
+            return f"Point {count + 1}"
+        elif item_type == "measurement":
+            return f"Measurement {count + 1}"
+        return "Item"
+
+    def add_coordinate(self, x, y, name=""):
+        item = CoordinateItem(x, y, name=name)
         self.add_to_tree_root(item)
         self.save_data()
         return item
 
-    def add_measurement(self, x1, y1, x2, y2, dist, auto_aligned):
-        item = MeasurementItem(x1, y1, x2, y2, dist, auto_aligned=auto_aligned)
+    def add_measurement(self, x1, y1, x2, y2, dist, auto_aligned, name=""):
+        item = MeasurementItem(x1, y1, x2, y2, dist, auto_aligned=auto_aligned, name=name)
         self.add_to_tree_root(item)
         self.save_data()
         return item
@@ -990,9 +1044,17 @@ class MainWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    # fusion looks best, maybe add option later for Gnome or GTK+ in app.
     app.setStyle("Fusion")
     
     window = MainWindow()
     window.show()
     
     sys.exit(app.exec_())
+    
+    
+    
+# later:
+# - Add magnifier window above cursor to make is easier to see (similar to firefox eye dropper).
+# - Add colour picker, stored with info.
+# - When taking point, screenshot border around so that user can match point and where it is visually.
