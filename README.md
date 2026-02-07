@@ -7,7 +7,9 @@
 > An elegant, feature-rich application for displaying coordinates and measuring distances between pixels, designed specifically for Wayland and X11.
 
 ### 🎥 Demo
-https://github.com/mimouza23/Screen_Coordinate_Tool/raw/main/demo.mp4
+<video src="https://github.com/mimouza23/Screen_Coordinate_Tool/blob/main/demo.mp4?raw=true" controls="controls" style="max-width: 100%; height: auto;">
+  Your browser does not support the video tag.
+</video>
 
 ---
 
