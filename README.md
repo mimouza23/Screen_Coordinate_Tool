@@ -7,7 +7,9 @@
 > An elegant, feature-rich application for displaying coordinates and measuring distances between pixels, designed specifically for Wayland and X11.
 
 ### 🎥 Demo
+
 https://github.com/user-attachments/assets/b096df55-77d6-4de2-9d5a-c0c76d09759a
+
 ---
 
 
