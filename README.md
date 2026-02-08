@@ -64,15 +64,6 @@ python main.py
 
 ---
 
-### ☕ Support the Project
-
-If you find this tool useful, consider supporting its development:
-
-[![Librepay](https://img.shields.io/badge/Librepay-Donate-f6c915?style=for-the-badge&logo=librepay&logoColor=black)](https://librepay.com/)
-[![Ko-fi](https://img.shields.io/badge/Ko-fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/)
-
----
-
 ![Screen Coordinate Tool Logo](logo.png)
 
 ---
