@@ -52,9 +52,8 @@ pip install PyQt5
 python main.py
 ```
 
-#### Option 2: Portable Run
-*(Coming Soon: AppImage for one-click execution)*
-
+#### Option 2: One-Click Run (Binary)
+[![Download Binary](https://img.shields.io/badge/Download-Latest_Binary-green?style=for-the-badge&logo=github)](https://github.com/mimouza23/Linux-Screen-Coordinate-Tool/releases/download/Release/main)
 
 ### 🗺 Roadmap
 
